@@ -187,7 +187,7 @@ int Planner::validate(int lane, vector <double> & scores, double current_s)
         }
         double d = state->current_s - current_s;
         if ( abs(d - state->lanes[lane]->back_distance ) < TOO_CLOSE ) {
-            cout << "cur s to close" << endl;
+            //cout << "cur s to close" << endl;
             return state->current_lane;
         }
         //cout << "Lane changed: " << state->current_lane << " to " << lane << endl;
