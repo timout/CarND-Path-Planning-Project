@@ -8,6 +8,20 @@
 #include "helpers.h"
 #include "json.hpp"
 
+/* ---------*/
+
+#include "spline.h"
+#include "planner.hpp"
+
+Planner planner;
+
+
+const int path_size = 50;
+
+const int spacing[] = { 45, 90, 135 };
+
+/* ---------*/
+
 // for convenience
 using nlohmann::json;
 using std::string;
@@ -91,13 +105,108 @@ int main() {
           json msgJson;
 
           vector<double> next_x_vals;
-          vector<double> next_y_vals;
-
+          vector<double> next_y_vals; 
           /**
            * TODO: define a path made up of (x,y) points that the car will visit
            *   sequentially every .02 seconds
            */
 
+          int prev_path_size = previous_path_x.size();
+          int points_to_add = path_size - prev_path_size;
+
+          // copy old path
+          for(int i = 0; i < prev_path_size; i++) {
+            next_x_vals.push_back(previous_path_x[i]);
+            next_y_vals.push_back(previous_path_y[i]);
+          }
+          
+          vector<double> ptsx;
+          vector<double> ptsy;
+        
+          double ref_x = car_x;
+          double ref_y = car_y;
+          double ref_yaw = deg2rad(car_yaw);
+          
+          if ( prev_path_size < 2 ) { //use current values
+            double x_prev = car_x - cos(car_yaw);
+            double y_prev = car_y - sin(car_yaw);
+            
+            ptsx.push_back(x_prev);
+            ptsy.push_back(y_prev);
+
+          } else { // use previous values
+              ref_x = previous_path_x[prev_path_size-1];
+              ref_y = previous_path_y[prev_path_size-1];
+
+              double x_prev = previous_path_x[prev_path_size-2];
+              double y_prev = previous_path_y[prev_path_size-2];
+
+              ref_yaw = atan2(ref_y - y_prev, ref_x - x_prev);
+              
+              ptsx.push_back(x_prev);
+              ptsy.push_back(y_prev);
+              
+            }
+            ptsx.push_back(ref_x);
+            ptsy.push_back(ref_y);
+          
+            // Calculate the rest of the path
+            vector<double> frenet_coordinates = getFrenet(ref_x, ref_y, ref_yaw, map_waypoints_x, map_waypoints_y);
+
+            // Call planner to get next d coordinate
+            int next_d = planner.execute(frenet_coordinates, sensor_fusion, car_s);
+          
+            // Generate point to draw spline through them
+            for ( int sp : spacing ) {
+              vector <double> next_wp = getXY(car_s + sp, next_d, map_waypoints_s, map_waypoints_x, map_waypoints_y);
+              ptsx.push_back(next_wp[0]); 
+              ptsy.push_back(next_wp[1]);
+            }
+          
+            // Convert points to car local 
+            for (int i = 0; i < ptsx.size(); i++) {
+              double shift_x = ptsx[i] - ref_x;
+              double shift_y = ptsy[i] - ref_y;
+              
+              ptsx[i] = (shift_x*cos(0-ref_yaw)-shift_y*sin(0-ref_yaw));
+              ptsy[i] = (shift_x*sin(0-ref_yaw)+shift_y*cos(0-ref_yaw));
+            }
+
+            // create spline and set points  
+            tk::spline spln;
+            spln.set_points(ptsx, ptsy);
+              
+            // Set horizon
+            double target_x = 30;
+            double target_y = spln(target_x);
+            double target_dist = sqrt( target_x * target_x + target_y * target_y);
+              
+            double x_add_on = 0;
+            for(int i = 0; i < points_to_add; i++) {
+              double point_velocity = planner.get_next_velocity(); 
+              
+              // Calculate points along a new path
+              double N = ( target_dist / ( 0.02 * point_velocity ) );
+              double x_point = x_add_on + (target_x)/N;
+              double y_point = spln(x_point);
+              
+              x_add_on = x_point;
+              
+              // Convert points to car local 
+              double x_ref = x_point;
+              double y_ref = y_point;
+              
+              x_point = (x_ref*cos(ref_yaw)-y_ref*sin(ref_yaw));
+              y_point = (x_ref*sin(ref_yaw)+y_ref*cos(ref_yaw));
+              
+              x_point += ref_x;
+              y_point += ref_y;
+              
+              //add path point
+              next_x_vals.push_back(x_point);
+              next_y_vals.push_back(y_point);
+            }
+            // ----------------------------------
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
