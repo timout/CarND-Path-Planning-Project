@@ -34,7 +34,7 @@ Planner accepts sensors data, `s` and `d` coordinates from end of the path and u
 It uses third party cubic `spline` library to build smooth trajectory for the car.
 ###### Steps
 - To build smooth path - generate 3 waypoints.  
-  I have tryed various spacing for waypoints starting from 30 m and end up with using 45 m. Shorter spacing can cause to exiding max jerk. 
+  I have tryed various spacing for waypoints starting from 30 m and end up with using 45 m. Shorter spacing can cause to exceding max jerk. 
 - Using waypoints and `spline` library - build path points for the car.  
   Distance between points is calculated by using point velocity and 0.02 second as time.  
   Velocity for each point is calculated using target velocity provided by planner so it can be gradually increased or decreased. 
@@ -42,3 +42,8 @@ It uses third party cubic `spline` library to build smooth trajectory for the ca
 - Push calculated path to simulator
 Every point 
 - Using old path points and waypoint `spline` 
+
+#### Things to improve
+1. This path planner is very simple, it uses very simple logic to plan the path. 
+2. Planer is one way planner without ability to change already made decision.
+3. Trajectory generation can be made more advaced: time to time it cause exceding jerk or car goes out of lane.
